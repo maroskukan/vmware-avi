@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+#    ***************************************************************************
+#    ********************            User Input             ********************
+#    ***************************************************************************
+
+# Update the variables to match your environment
+AVI_ENDPOINT="https://<avi-controller-fqdn>"
+AVI_USERNAME="<avi-username>"
+AVI_PASSWORD="<avi-password>"
+
+
+#    ***************************************************************************
+#    ********************        Version and files          ********************
+#    ***************************************************************************
+
+# Update version as needed
+AVI_VERSION="18.1.2"
+AVI_COOKIE="avi.cookie"
+GET_CONFIG="avi.get"
+POST_CONFIG="avi.post"
+LOGOUT_CONFIG="avi.logout"
+
+#    ***************************************************************************
+#    ********************          Retrieve Cookie          ********************
+#    ***************************************************************************
+
+# Create generic request
+curl --noproxy '*' \
+--silent \
+--insecure \
+--request POST \
+--header 'Content-Type: application/json' \
+--data '{
+"username": "'"$AVI_USERNAME"'",
+"password": "'"$AVI_PASSWORD"'"
+}' \
+"${AVI_ENDPOINT}/login" \
+--output site.output \
+--cookie-jar $AVI_COOKIE \
+--write-out %{http_code} \
+  > http.response.code 2> error.messages
+
+# Capture exit code from curl
+errorLevel=$?
+
+
+#    ***************************************************************************
+#    ********************    Generate configuration files   ********************
+#    ***************************************************************************
+
+# Based on HTTP Return code, do required action
+if [[ "$(cat http.response.code)" = 200 ]] ; then
+    # HTTP 200 - OK
+    
+    # Retrieve CSRFTOKEN
+    CSRFTOKEN=$(grep csrftoken $AVI_COOKIE | awk '{ print $7 }')
+    
+    # Create config file for GET operations
+    echo "--silent" > $GET_CONFIG
+    echo "--insecure" >> $GET_CONFIG
+    echo "--cookie $AVI_COOKIE" >> $GET_CONFIG
+    echo "--header \"X-CSRFToken:$CSRFTOKEN\"" >> $GET_CONFIG
+    echo "--header \"X-Avi-Version:$AVI_VERSION\"" >> $GET_CONFIG
+    echo "--header \"Accept-Encoding:application/json\"" >> $GET_CONFIG
+    echo "--request GET" >>  $GET_CONFIG
+    # Operation status
+    echo "Config file $GET_CONFIG for GET Requests generated successfully"
+
+    # Create config file for POST operations
+    echo "--silent" > $POST_CONFIG
+    echo "--insecure" >> $POST_CONFIG
+    echo "--cookie $AVI_COOKIE" >> $POST_CONFIG
+    echo "--header \"X-CSRFToken:$CSRFTOKEN\"" >> $POST_CONFIG
+    echo "--header \"X-Avi-Version:$AVI_VERSION\"" >> $POST_CONFIG
+    echo "--header \"Accept-Encoding:application/json\"" >> $POST_CONFIG
+    echo "--request POST" >>  $POST_CONFIG
+    # Operation status
+    echo "Config file $POST_CONFIG for GET Requests generated successfully"
+    
+
+    # Create config file for LOGOUT operation
+    echo "curl --noproxy '*' -k -b $AVI_COOKIE -X POST -H \"X-CSRFToken:$CSRFTOKEN\" -H \"Referer:$AVI_ENDPOINT\" \"$AVI_ENDPOINT/logout\" && echo \"Logout sucessfull\"" > $LOGOUT_CONFIG
+    echo "rm $AVI_COOKIE $GET_CONFIG $POST_CONFIG $LOGOUT_CONFIG && echo \"Configuration files removed\"" >> $LOGOUT_CONFIG
+    chmod u+x $LOGOUT_CONFIG
+    echo "Config file $LOGOUT_CONFIG for logout generated successfully"
+    
+    # Cleanup temporary files
+    rm -r site.output http.response.code error.messages
+elif [[ "$(cat http.response.code)" = 000 ]] ; then
+    # HTTP 000 - No code was received, therefore curl exit status is displayed
+    echo "Error: Curl error code $errorLevel"
+    rm -r http.response.code error.messages
+else
+    # HTTP Other response, print response and output, do not clean
+    echo "Error: HTTP Status code $(cat http.response.code)"
+    jq -r . site.output
+fi
