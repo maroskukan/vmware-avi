@@ -7,6 +7,7 @@
   - [Administration](#administration)
     - [REST API](#rest-api)
       - [Authentication](#authentication)
+      - [Request Examples](#request-examples)
 
 ## Introduction
 
@@ -71,4 +72,24 @@ Configuration files removed
 # Verify the files were removed
 ls
 environment.sh
+```
+
+#### Request Examples
+
+Retrieve cluster version.
+
+```bash
+curl --noproxy '*' \
+      --config avi.get \
+      $AVI_ENDPOINT/api/cluster/version \
+      | jq -r '.'
+{
+  "Date": "2021-04-15T07:08:29+00:00",
+  "Product": "controller",
+  "Version": "20.1.5",
+  "Tag": "20.1.5-9148-20210415.070829",
+  "ProductName": "Avi Cloud Controller",
+  "min_version": 15.2,
+  "build": 9148
+}
 ```
